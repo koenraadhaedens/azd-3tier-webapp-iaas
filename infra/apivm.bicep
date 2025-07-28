@@ -4,6 +4,7 @@ param subnetId string
 @secure()
 param winVMPassword string
 param tags object
+param winVMUsername string
 
 resource nic 'Microsoft.Network/networkInterfaces@2023-05-01' = {
   name: 'nic-api-${environmentName}'
@@ -32,8 +33,7 @@ resource vm 'Microsoft.Compute/virtualMachines@2023-03-01' = {
       vmSize: 'Standard_B2s'
     }
     osProfile: {
-      computerName: 'apivm'
-      adminUsername: 'azureuser'
+      adminUsername: winVMUsername
       adminPassword: winVMPassword
     }
     storageProfile: {

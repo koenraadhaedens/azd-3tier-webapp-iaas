@@ -1,24 +1,22 @@
 targetScope = 'subscription'
 
-@minLength(1)
-@maxLength(64)
-@description('Name of the environment that can be used as part of naming resource convention')
+@description('Name of the environment')
 param environmentName string
 
-@minLength(1)
-@description('Primary location for all resources')
+@description('Location for resources')
 param location string
 
 @secure()
-@description('Password for the Windows VM')
+@description('Password for the Windows VMs')
 param winVMPassword string
 
+var rgName = 'rg-${environmentName}'
 var tags = {
   'azd-env-name': environmentName
 }
 
 resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' = {
-  name: 'rg-${environmentName}'
+  name: rgName
   location: location
   tags: {
     SecurityControl: 'Ignore'
@@ -26,70 +24,51 @@ resource rg 'Microsoft.Resources/resourceGroups@2022-09-01' = {
   }
 }
 
-resource vnet 'Microsoft.Network/virtualNetworks@2023-05-01' = {
-  name: 'vnet-${environmentName}'
-  location: location
-  properties: {
-    addressSpace: {
-      addressPrefixes: [
-        '192.168.50.0/24'
-      ]
-    }
-    subnets: [
-      {
-        name: 'webSubnet'
-        properties: {
-          addressPrefix: '192.168.50.0/27'
-        }
-      }
-      {
-        name: 'apiSubnet'
-        properties: {
-          addressPrefix: '192.168.50.32/27'
-        }
-      }
-      {
-        name: 'sqlSubnet'
-        properties: {
-          addressPrefix: '192.168.50.64/27'
-        }
-      }
-    ]
-  }
-}
-
-module webvm 'webvm.bicep' = {
-  name: 'webvm'
-  scope: rg
+module vnet 'vnet.bicep' = {
+  name: 'vnet'
+  scope: resourceGroup(rgName)
   params: {
     environmentName: environmentName
     location: location
-    subnetId: vnet.properties.subnets[0].id
+  }
+}
+
+// Reference subnet resource IDs from vnet module outputs
+module webvm 'webvm.bicep' = {
+  name: 'webvm'
+  scope: resourceGroup(rgName)
+  params: {
+    environmentName: environmentName
+    location: location
+    subnetId: vnet.outputs.webSubnetId
     winVMPassword: winVMPassword
+    winVMAdminUsername: 'adminuser'
     tags: tags
   }
 }
 
 module apivm 'apivm.bicep' = {
   name: 'apivm'
-  scope: rg
+  scope: resourceGroup(rgName)
   params: {
     environmentName: environmentName
     location: location
-    subnetId: vnet.properties.subnets[1].id
+    subnetId: vnet.outputs.apiSubnetId
     winVMPassword: winVMPassword
+    winVMUsername: 'adminuser'
     tags: tags
   }
 }
 
 module sqlvm 'sqlvm.bicep' = {
   name: 'sqlvm'
-  scope: rg
+  scope: resourceGroup(rgName)
   params: {
     environmentName: environmentName
     location: location
-    subnetId: vnet.properties.subnets[2].id
+    subnetId: vnet.outputs.sqlSubnetId
     winVMPassword: winVMPassword
     tags: tags
+    winVMUsername: 'adminuser'
   }
 }
